@@ -65,8 +65,8 @@ parser.add_argument(
     help="learning rate for stage III",
 )
 parser.add_argument(
-    "-lr_bta",
-    "--learning_rate_bta",
+    "-lr_beta",
+    "--learning_rate_beta",
     type=float,
     default=0.001,
     help="learning rate for stage II (β)",
@@ -92,6 +92,13 @@ parser.add_argument(
 parser.add_argument("-train", "--training_loop", type=str, default="slcwa")
 parser.add_argument("-b", "--batch_size", type=int, default=256)
 parser.add_argument("-e", "--epochs", type=int, default=1000)
+parser.add_argument(
+    "-si",
+    "--store_intermediate_results",
+    action="store_true",
+    default=False,
+    help="store intermediate results for each epoch",
+)
 
 # === Negative Sampling ===
 parser.add_argument("-neg", "--negative_sampler", type=str, default=None)
@@ -227,24 +234,35 @@ if __name__ == "__main__":
     )
     pipeline_config["evaluator"] = evaluator_instance
 
-    if "cs-" in args.model:
+    # ===== read model =====
+    is_cs_model = args.model.startswith("cs-")
+    base_model_name = args.model.replace("cs-", "") if is_cs_model else args.model
 
-        cs_model_resolver = dict(
-            transe=CST,
-            rotate=CSR,
-        )
-
-        model_name = args.model.replace("cs-", "")
-
-        model = cs_model_resolver[model_name](
+    # ===== create model =====
+    if is_cs_model:
+        cs_model_resolver = {
+            "transe": CST,
+            "rotate": CSR,
+        }
+        model = cs_model_resolver[base_model_name](
             triples_factory=dataset.training,
             ent_dim=args.emb_dim,
             rel_dim=args.emb_dim,
             cat_dim=args.cat_emb_dim,
-            # scoring_fct_norm=1,
             loss=loss,
         )
+    else:
+        model = model_resolver.make(
+            base_model_name,
+            dict(
+                embedding_dim=args.emb_dim,
+                triples_factory=dataset.training,
+                loss=loss,
+            ),
+        )
 
+    # ===== prepare kwargs =====
+    if is_cs_model:
         negative_sampler_cls = negative_sampler_resolver.lookup(
             pipeline_config["negative_sampler"]
         )
@@ -260,65 +278,66 @@ if __name__ == "__main__":
             negative_sampler=negative_sampler_cls,
             negative_sampler_kwargs=pipeline_config["negative_sampler_kwargs"],
             store_intermediate_results=args.store_intermediate_results,
-            cv_lr=args.learning_rate_bta,
+            cv_lr=args.learning_rate_beta,
             cv_ent_lr=args.learning_rate_kappa,
         )
-
-        pipeline_config["training_loop"] = CategorySupplementarySLCWATrainingLoop(
-            **training_kwargs
-        )
     else:
-        model = model_resolver.make(
-            args.model,
-            dict(
-                embedding_dim=args.emb_dim,
-                triples_factory=dataset.training,
-                loss=loss,
-            ),
-        )
-
-        # oneCycleLR scheduler
-        if args.lr_scheduler == "OCLR":
-            using_LROnPlateau_lr_scheduler = False
-            pipeline_config["training_loop_kwargs"] = dict(
-                lr_scheduler="oneCycleLR",
-                lr_scheduler_kwargs=dict(
-                    max_lr=args.learning_rate,
-                    epochs=args.epochs,
-                    steps_per_epoch=1,  # pykeen 中的一个 epoch 只有一个 step
-                    anneal_strategy="cos",
-                    cycle_momentum=False,
-                    pct_start=0.3,
-                    div_factor=25,
-                    final_div_factor=1000,
-                ),
-            )
-
-            postpone_stopper = PostponeEarlyStopper(
-                model=model,
-                evaluator=evaluator_instance,
-                training_triples_factory=dataset.training,
-                evaluation_triples_factory=dataset.validation,
-                start_epoch=0.3 * args.epochs,
-                **pipeline_config["stopper_kwargs"],
-            )
-            pipeline_config["stopper"] = postpone_stopper
-
-        elif args.lr_scheduler == "reduceLRonPlateau":
-            using_LROnPlateau_lr_scheduler = True
-            pipeline_config["training_loop_kwargs"] = dict(
-                lr_scheduler=None,
-                lr_scheduler_kwargs=None,
-            )
-
-        pipeline_config["training_loop"] = SLCWAWithReduceLROnPlateauLRScheduler(
+        training_kwargs = dict(
             model=model,
             triples_factory=training,
-            using_LROnPlateau_lr_scheduler=using_LROnPlateau_lr_scheduler,
-            lr_scheduler=pipeline_config["training_loop_kwargs"]["lr_scheduler"],
-            lr_scheduler_kwargs=pipeline_config["training_loop_kwargs"][
-                "lr_scheduler_kwargs"
-            ],
+        )
+
+    # ===== lr scheduler =====
+    lr_scheduler = None
+    lr_scheduler_kwargs = None
+    using_LROnPlateau = False
+
+    if args.lr_scheduler == "OCLR":
+        lr_scheduler = "oneCycleLR"
+        lr_scheduler_kwargs = dict(
+            max_lr=args.learning_rate,
+            epochs=args.epochs,
+            steps_per_epoch=1,  # PyKEEN 中每个 epoch 通常只有一个 step
+            anneal_strategy="cos",
+            cycle_momentum=False,
+            pct_start=0.3,
+            div_factor=25,
+            final_div_factor=1000,
+        )
+        postpone_stopper = PostponeEarlyStopper(
+            model=model,
+            evaluator=evaluator_instance,
+            training_triples_factory=dataset.training,
+            evaluation_triples_factory=dataset.validation,
+            start_epoch=int(0.3 * args.epochs),
+            **pipeline_config["stopper_kwargs"],
+        )
+        pipeline_config["stopper"] = postpone_stopper
+
+    elif args.lr_scheduler == "RLRP":
+        using_LROnPlateau = True
+        lr_scheduler = None
+        lr_scheduler_kwargs = None
+
+    # ===== register training loop =====
+    pipeline_config["training_loop_kwargs"] = dict(
+        lr_scheduler=lr_scheduler,
+        lr_scheduler_kwargs=lr_scheduler_kwargs,
+    )
+
+    if is_cs_model:
+        pipeline_config["training_loop"] = CategorySupplementarySLCWATrainingLoop(
+            using_LROnPlateau_lr_scheduler=using_LROnPlateau,
+            lr_scheduler=lr_scheduler,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            **training_kwargs,
+        )
+    else:
+        pipeline_config["training_loop"] = SLCWAWithReduceLROnPlateauLRScheduler(
+            using_LROnPlateau_lr_scheduler=using_LROnPlateau,
+            lr_scheduler=lr_scheduler,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            **training_kwargs,
         )
 
     if args.evaluate_on_training:

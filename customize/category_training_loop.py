@@ -4,13 +4,14 @@ import logging
 import os
 import pathlib
 import time
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Any, Union
 
 # ==== 第三方库 ====
 import torch
 from torch.nn.functional import logsigmoid
 from torch.utils.data import DataLoader
 from tqdm import tqdm, trange
+from torch import FloatTensor
 
 from class_resolver.contrib.torch import lr_scheduler_resolver, optimizer_resolver
 from torch_max_mem.api import is_oom_error
