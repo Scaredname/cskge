@@ -83,7 +83,7 @@ parser.add_argument(
     "-lr_sch",
     "--lr_scheduler",
     type=str,
-    default=None,
+    default="RLRP",
     choices=["OCLR", "RLRP"],
     help="learning rate scheduler: OCLR = One Cycle LR, RLRP = Reduce LR on Plateau",
 )
@@ -366,8 +366,6 @@ if __name__ == "__main__":
     pipeline_result.configuration["loss_kwargs"] = str(pipeline_config["loss"].__dict__)
 
     pipeline_result.configuration["num_parameters"] = model.num_parameters
-    if args.framework:
-        pipeline_result.configuration["model_kwargs"] = str(model.__dict__)
 
     pipeline_result.configuration["random_seed"] = pipeline_result.random_seed
     pipeline_result.configuration["description"] = args.description

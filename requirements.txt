@@ -1,0 +1,8 @@
+class_resolver==0.5.2
+numpy==2.2.5
+pandas==2.0.0
+pykeen==1.10.3.dev0
+scipy==1.15.3
+torch==2.0.0
+torch_max_mem==0.1.3
+tqdm==4.65.0
