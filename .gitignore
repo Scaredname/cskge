@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# folders
+data/*
+result/*
+models/*
+runs/
+checkpoints/
+models_old/*
+
+# bash
+*.sh
+
+*.png
+*.ipynb
+test*
+try*
