@@ -285,6 +285,7 @@ if __name__ == "__main__":
         training_kwargs = dict(
             model=model,
             triples_factory=training,
+            optimizer_kwargs=dict(lr=args.learning_rate),
         )
 
     # ===== lr scheduler =====
