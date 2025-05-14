@@ -1,7 +1,19 @@
-```
-unzip data.zip -d data
-pip install -r requirements.txt
-```
+## Setup Instructions
+
+1. **Extract the dataset**  
+   Unzip the dataset archive into the `data/` directory:
+
+   ```bash
+   unzip data.zip -d data
+   ```
+
+2. **Install dependencies**  
+   Install all required Python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+> Make sure you're using **Python 3.9** or higher.
 
 ### Best configurations
 
