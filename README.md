@@ -1,4 +1,4 @@
-## Setup Instructions
+### Setup Instructions
 
 1. **Extract the dataset**  
    Unzip the dataset archive into the `data/` directory:
