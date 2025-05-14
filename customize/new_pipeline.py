@@ -135,6 +135,7 @@ def _handle_training_loop(
             ),
         )
 
+    # If the training loop is already an instance, we can skip the instantiation. Note it may cause some issues.
     if isinstance(training_loop, TrainingLoop):
         training_loop.result_tracker = _result_tracker
         return training_loop

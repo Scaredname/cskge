@@ -208,6 +208,10 @@ if __name__ == "__main__":
         loss=loss,
         regularizer_kwargs=regularizer_kwargs,
         random_seed=args.random_seed,
+        optimizer=args.optimizer,
+        optimizer_kwargs=dict(
+            lr=args.learning_rate,
+        ),
     )
 
     date_time = "/%s/%s/%s" % (
@@ -262,10 +266,10 @@ if __name__ == "__main__":
         )
 
     # ===== prepare kwargs =====
+    negative_sampler_cls = negative_sampler_resolver.lookup(
+        pipeline_config["negative_sampler"]
+    )
     if is_cs_model:
-        negative_sampler_cls = negative_sampler_resolver.lookup(
-            pipeline_config["negative_sampler"]
-        )
         training_kwargs = dict(
             model=model,
             triples_factory=training,
@@ -286,6 +290,8 @@ if __name__ == "__main__":
             model=model,
             triples_factory=training,
             optimizer_kwargs=dict(lr=args.learning_rate),
+            negative_sampler=negative_sampler_cls,
+            negative_sampler_kwargs=pipeline_config["negative_sampler_kwargs"],
         )
 
     # ===== lr scheduler =====
