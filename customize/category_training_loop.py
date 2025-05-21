@@ -48,6 +48,7 @@ from pykeen.utils import (
     get_batchnorm_modules,
     get_preferred_device,
 )
+from torch.optim.optimizer import Optimizer
 
 # ==== 自定义模块 ====
 from customize.training_callbacks import (
@@ -60,6 +61,16 @@ from .category_triple_factory import CategoryTriplesFactory
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_optimizer_kwargs(optimizer: Optimizer) -> Mapping[str, Any]:
+    optimizer_kwargs = optimizer.state_dict()
+    optimizer_kwargs = {
+        key: value
+        for key, value in optimizer_kwargs["param_groups"][0].items()
+        if key not in ["params", "initial_lr", "max_lr", "min_lr"]
+    }
+    return optimizer_kwargs
 
 
 class SLCWAWithReduceLROnPlateauLRScheduler(SLCWATrainingLoop):
