@@ -88,6 +88,29 @@ parser.add_argument(
     help="learning rate scheduler: OCLR = One Cycle LR, RLRP = Reduce LR on Plateau",
 )
 
+
+parser.add_argument(
+    "-lsps",
+    "--lr_sch_pct_start",
+    type=float,
+    default=0.05,
+    help="percentage of the cycle (OCLR)",
+)
+parser.add_argument(
+    "-lsdf",
+    "--lr_sch_div_factor",
+    type=float,
+    default=25,
+    help="div factor (OCLR) for initial learning rate",
+)
+parser.add_argument(
+    "-lsfdf",
+    "--lr_sch_final_div_factor",
+    type=float,
+    default=1000,
+    help="final div factor (OCLR) for final learning rate",
+)
+
 # === Training Loop Settings ===
 parser.add_argument("-train", "--training_loop", type=str, default="slcwa")
 parser.add_argument("-b", "--batch_size", type=int, default=256)
@@ -307,16 +330,16 @@ if __name__ == "__main__":
             steps_per_epoch=1,  # PyKEEN 中每个 epoch 通常只有一个 step
             anneal_strategy="cos",
             cycle_momentum=False,
-            pct_start=0.3,
-            div_factor=25,
-            final_div_factor=1000,
+            pct_start=args.lr_sch_pct_start,
+            div_factor=args.lr_sch_div_factor,
+            final_div_factor=args.lr_sch_final_div_factor,
         )
         postpone_stopper = PostponeEarlyStopper(
             model=model,
             evaluator=evaluator_instance,
             training_triples_factory=dataset.training,
             evaluation_triples_factory=dataset.validation,
-            start_epoch=int(0.3 * args.epochs),
+            start_epoch=int(args.lr_sch_pct_start * args.epochs),
             **pipeline_config["stopper_kwargs"],
         )
         pipeline_config["stopper"] = postpone_stopper
@@ -373,9 +396,25 @@ if __name__ == "__main__":
     pipeline_result.configuration["loss_kwargs"] = str(pipeline_config["loss"].__dict__)
 
     pipeline_result.configuration["num_parameters"] = model.num_parameters
+    pipeline_result.configuration["model_kwargs"] = str(model.__dict__)
 
     pipeline_result.configuration["random_seed"] = pipeline_result.random_seed
     pipeline_result.configuration["description"] = args.description
+    pipeline_result.configuration["lr_scheduler"] = args.lr_scheduler
+    pipeline_result.configuration["lr_scheduler_kwargs"] = str(
+        pipeline_config["training_loop"].lr_scheduler_kwargs
+    )
+    pipeline_result.configuration["training_loop"] = type(
+        pipeline_config["training_loop"]
+    ).__name__
+    pipeline_result.configuration["training_loop_kwargs"] = str(
+        pipeline_config["training_loop"].__dict__
+    )
+
+    # try:
+    #     pipeline_result.configuration["training_kwargs"] = str(training_kwargs)
+    # except:
+    #     pass
     pipeline_result.save_to_directory(modelpath)
 
     with open(os.path.join(modelpath, "config.json"), "w") as f:
