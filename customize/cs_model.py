@@ -72,14 +72,7 @@ class CategorySupplementedModel(ERModel):
             ),
         )
         ent_category_weight = triples_factory.ents_cates_adj_matrix
-        # self.ent_wrt_cat_weight = torch.nn.Parameter(
-        #     1 / (torch.tensor(triples_factory.entity_frequency) + 1e-1), True
-        # )
-        # self.ent_wrt_cat_weight = torch.nn.Parameter(
-        #     torch.FloatTensor(triples_factory.entity_frequency)
-        #     - torch.mean(torch.FloatTensor(triples_factory.entity_frequency)),
-        #     True,
-        # )
+
         adj_sum = self.triples_factory.ents_cates_adj_matrix.sum(dim=1)
         # Make sure adj_sum is a float tensor if needed:
         adj_sum = adj_sum.float()
