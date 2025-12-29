@@ -57,7 +57,7 @@ cst:
 `python train.py -d FB_new -m cs-transe -e 1000 -ed 512 -ced 512 -nen 512 -nenT 64 -b 1024 -lo nssa_loss -lm 9 -i_per 0.8 -lr 0.005 -lr_kappa 0.01 -lr_beta 0.5 -lr_eta 0.005 -at 2.0`
 
 csr:
-`python train.py -d FB_new -m cs-rotate -e 1000 -ed 1024 -ced 256 -nen 512 -nenT 512 -b 1024 -lo nssa_loss -lm 9 -i_per 0.7 -lr 0.005 -lr_kappa 0.001 -lr_beta 0.05 -lr_eta 0.01 -at 1.5`
+`python train.py -d FB_new -m cs-rotate -e 1000 -ed 1024 -ced 256 -nen 512 -nenT 512 -b 1024 -lo nssa_loss -lm 9 -i_per 0.8 -lr 0.005 -lr_kappa 0.001 -lr_beta 0.05 -lr_eta 0.01 -at 1.5`
 
 #### DB241
 
