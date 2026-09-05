@@ -1,28 +1,30 @@
-# CSKGE：类别信息增强的知识图谱嵌入实验
+# CSKGE: Category-Supplemented Knowledge Graph Embeddings
 
-包含 TransE、RotatE、CS-TransE（CST）、CS-RotatE（CSR），以及四套本地数据。
+Experiments with TransE, RotatE, CS-TransE (CST), and CS-RotatE (CSR), including four bundled datasets.
 
-## 快速开始
+## Quick start
 
-项目使用 **uv 管理 Python、虚拟环境和依赖**，不依赖 conda。Python 固定为 3.11.16；`pyproject.toml` 声明依赖，`uv.lock` 锁定完整版本。uv 的项目工作流见 [官方文档](https://docs.astral.sh/uv/guides/projects/)。
+The project uses **uv to manage Python, the virtual environment, and dependencies**. It does not depend on conda. Python is pinned to 3.11.16; `pyproject.toml` declares dependencies and `uv.lock` records resolved versions. See the [uv project guide](https://docs.astral.sh/uv/guides/projects/) for the workflow.
 
-当前机器已安装 uv；若当前终端还找不到命令，先运行 `source ~/.local/bin/env`。直接启动，无需激活环境：
+On the current host, uv is installed. If the current shell cannot find it, run `source ~/.local/bin/env`. No environment activation is required:
 
 ```bash
 uv run --locked python scripts/smoke_test.py
 ```
 
-新机器先[安装 uv](https://docs.astral.sh/uv/getting-started/installation/)，再执行：
+On a new host, [install uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
 
 ```bash
 bash scripts/setup_env.sh
 ```
 
-脚本使用 uv 下载独立 Python、按锁文件同步 `.venv`、解压数据并检查依赖。当前锁定并验证 Linux x86_64 / Python 3.11。也可手动执行 `uv sync --locked`。原先的 PyKEEN 开发版依赖改为经运行验证的 `1.10.2`，不宣称与原开发版数值完全一致。发布信息见 [PyKEEN PyPI](https://pypi.org/project/pykeen/1.10.2/)。
+The setup script downloads an independent Python interpreter, synchronizes `.venv` from the lockfile, extracts missing data files, and checks dependencies. The locked environment targets Linux x86_64 and Python 3.11. Use `uv sync --locked` to synchronize it manually.
 
-## 运行实验
+The original PyKEEN development-version dependency was replaced with the tested `1.10.2` release. Numerical equivalence with the original development version has not been established. See the [PyKEEN release page](https://pypi.org/project/pykeen/1.10.2/).
 
-先用小参数验证真实数据流程：
+## Run experiments
+
+Check the real-data workflow with a small configuration:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 uv run --locked python train.py \
@@ -30,7 +32,7 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 uv run --locked python train.py \
   -ed 8 -ced 4 -nen 2 -nenT 2 -eb 8 -stop nop
 ```
 
-运行原始实验配置（16 组参数均保存在 `configs/experiments.json`）：
+Run an original experiment preset. All 16 configurations are preserved in `configs/experiments.json`:
 
 ```bash
 uv run --locked python scripts/run_experiment.py yago_new/cs-transe --device cuda --random_seed 42
@@ -38,23 +40,35 @@ uv run --locked python scripts/run_experiment.py --help
 uv run --locked python train.py --help
 ```
 
-命令尾部参数可以覆盖预设，例如 `-e 10 -ed 32 -b 64`。默认 `--device auto` 自动选择可用的 CUDA 或 CPU；当前机器 NVIDIA 驱动不可用，已验证 CPU 流程。原始预设为 1000 轮和较大负采样量，未执行完整复现。
+Trailing arguments override preset values, for example `-e 10 -ed 32 -b 64`. The default `--device auto` selects CUDA when available, otherwise CPU. GPU execution has been verified on a host with two RTX PRO 6000 Blackwell cards using PyTorch 2.7.1 and CUDA 12.8. A restricted sandbox may hide these devices; run GPU commands in a host terminal with device access.
 
-## 目录
+The original presets use 1,000 epochs and large negative-sampling counts. The complete experiment matrix has not been reproduced.
 
-| 路径 | 用途 |
+## Check and select GPUs
+
+```bash
+uv run --locked python scripts/check_gpu.py
+uv run --locked python scripts/smoke_test.py --device cuda --epochs 10 --stopper early
+CUDA_VISIBLE_DEVICES=1 uv run --locked python scripts/run_experiment.py yago_new/cs-transe --device cuda
+```
+
+`CUDA_VISIBLE_DEVICES=1` selects the second physical GPU, which appears as `cuda:0` inside the process. Each training run uses one GPU. PyTorch is installed from the official CUDA 12.8 index to support Blackwell. The tested host driver did not require reinstallation. See [GPU troubleshooting](docs/gpu.md) for the diagnosis and sandbox limitations.
+
+## Repository layout
+
+| Path | Purpose |
 | --- | --- |
-| `pyproject.toml` / `uv.lock` / `.python-version` | uv 依赖声明、完整锁文件、独立 Python 版本 |
-| `train.py` | 参数解析、模型与训练器组装、运行和保存 |
-| `utilities.py` | 数据读取与类别三元组拆分 |
-| `customize/` | 模型、三阶段训练、采样、早停和 pipeline 扩展 |
-| `configs/experiments.json` | 原 README 的全部实验预设 |
-| `scripts/` | 环境安装、解压、实验启动、冒烟测试 |
-| `docs/` | 中文代码导读、环境记录、数据清单、验证报告 |
-| `data.zip` / `data/` | 原始压缩包 / 解压后的四套数据 |
-| `models/` | 按数据集、模型和时间保存实验产物 |
-| `.venv/` / `.cache/` | 独立环境 / 项目缓存，均不入 Git |
+| `pyproject.toml`, `uv.lock`, `.python-version` | Dependencies, resolved versions, and managed Python version |
+| `train.py` | Arguments, model/training assembly, execution, and result saving |
+| `utilities.py` | Dataset loading and category-triple separation |
+| `customize/` | Models, three-stage training, sampling, stopping, and pipeline extensions |
+| `configs/experiments.json` | All original experiment presets |
+| `scripts/` | Setup, extraction, experiment launchers, and smoke tests |
+| `docs/` | Code guide, environment records, data inventory, and validation reports |
+| `data.zip`, `data/` | Original archive and extracted datasets |
+| `models/` | Experiment outputs organized by dataset, model, and timestamp |
+| `.venv/`, `.cache/` | Local environment and caches, excluded from Git |
 
-结果目录含 `results.json`（loss、排名指标）、`trained_model.pkl`、`training_triples/`、`metadata.json`、`config.json` 和 `args.json`（实际命令参数）。测试产物位于 `models/smoke/` 和 `models/validation/`。
+Each result directory contains `results.json` (losses and ranking metrics), `trained_model.pkl`, `training_triples/`, `metadata.json`, `config.json`, and `args.json` (actual command arguments). Validation artifacts are stored under `models/smoke/` and `models/validation/`.
 
-阅读入口：[代码导读](docs/code_guide.md)、[验证与限制](docs/validation.md)、[原始实验命令](docs/original_experiments.md)。
+Further reading: [code guide](docs/code_guide.md), [validation and limitations](docs/validation.md), and [original experiment commands](docs/original_experiments.md).

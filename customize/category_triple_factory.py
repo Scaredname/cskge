@@ -107,7 +107,7 @@ def create_relation_mapping(relations: Iterable[str]) -> RelationMapping:
         set(relations),
         key=lambda x: (
             re.sub(f"{INVERSE_SUFFIX}$", "", x),
-            x.endswith(f"{INVERSE_SUFFIX}"),  # 有后缀的会被放在后面
+            x.endswith(f"{INVERSE_SUFFIX}"),  # Place relations with the inverse suffix last
         ),
     )
     # Create mapping

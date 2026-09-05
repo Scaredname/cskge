@@ -1,109 +1,109 @@
-# 代码导读
+# Code guide
 
-## 1. 项目做什么
+## 1. Purpose
 
-任务是知识图谱链接预测：给定 `(头实体, 关系, ?)` 或 `(?, 关系, 尾实体)`，给所有候选实体打分并排名。TransE 使用平移交互，RotatE 使用复数旋转交互。CST/CSR 在这些交互之上引入实体所属类别，学习类别表示、到实体空间的投影，以及每个实体对原始表示的偏好权重。
+This project performs knowledge-graph link prediction. Given `(head, relation, ?)` or `(?, relation, tail)`, it scores and ranks candidate entities. TransE uses a translation interaction; RotatE uses a complex rotation interaction. CST/CSR extend those interactions with category embeddings, a projection into entity space, and a learned preference for each entity's original representation.
 
-仓库共有 11 个原始 Python 文件，主要复杂度集中在 1584 行的自定义训练循环。它复制了大量 PyKEEN 内部训练控制逻辑，因此依赖版本必须固定；只升级 PyKEEN 很容易破坏私有接口。
+The original repository contains 11 Python files. Most implementation complexity is concentrated in the 1,584-line custom training loop, which copies substantial PyKEEN training-control logic. Dependency versions must be pinned because private interfaces can change between PyKEEN releases.
 
-## 2. 执行与数据流
+## 2. Execution and data flow
 
 ```mermaid
 flowchart TD
-    A[train.py 参数与随机种子] --> B[utilities.read_data]
-    B --> C[拆分普通三元组与 category 三元组]
-    C --> D[CategoryTriplesFactory 编码与类别矩阵]
+    A[train.py arguments and random seed] --> B[utilities.read_data]
+    B --> C[Separate ordinary and category triples]
+    C --> D[CategoryTriplesFactory IDs and category matrices]
     D --> E[TransE / RotatE / CST / CSR]
     E --> F[new_pipeline.pipeline]
-    F --> G[普通 sLCWA 或三阶段训练]
-    G --> H[验证集 MRR 早停与学习率调度]
-    H --> I[测试集过滤排名评估]
-    I --> J[模型、指标、数据映射、实际参数保存]
+    F --> G[Ordinary sLCWA or three-stage training]
+    G --> H[Validation MRR stopping and LR scheduling]
+    H --> I[Filtered test ranking]
+    I --> J[Save model, metrics, mappings, and arguments]
 ```
 
-本地读取 `data/<dataset>/train_cate.txt`、`valid.txt`、`test.txt`。`train.txt` 是数据包中的普通训练三元组副本，入口实际读的是 `train_cate.txt`，从中分离关系名为 `category` 的记录。验证和测试复用训练实体/关系 ID，不把类别标签当作普通候选实体。PyKEEN 对训练映射中未出现的验证/测试标签可能过滤并报警，复现实验时须检查日志。
+Local datasets are read from `data/<dataset>/train_cate.txt`, `valid.txt`, and `test.txt`. The archive also contains `train.txt`, a copy of the ordinary training triples, but the entry point reads `train_cate.txt` and separates rows whose relation is `category`. Validation and test factories reuse training entity/relation IDs. Category labels are not ordinary candidate entities. PyKEEN may filter validation/test labels absent from the training mapping and emit warnings; check those warnings during reproduction.
 
-原始文件行数（非去重后张量数量）：
+Raw file line counts, before deduplication or mapping:
 
-| 数据集目录 | train.txt | train_cate.txt | valid.txt | test.txt |
+| Dataset directory | train.txt | train_cate.txt | valid.txt | test.txt |
 | --- | ---: | ---: | ---: | ---: |
 | yago_new | 32993 | 42745 | 4139 | 4092 |
 | NELL-995_new | 138516 | 214008 | 7477 | 7061 |
 | FB_new | 272115 | 366720 | 17526 | 20438 |
 | DB_new | 681886 | 780226 | 18057 | 17694 |
 
-## 3. 每个模块负责什么
+## 3. Module responsibilities
 
-| 模块 | 主要职责 |
+| Module | Responsibility |
 | --- | --- |
-| `train.py` | 构造 loss、数据、模型、优化器、调度器与早停器；调用 pipeline 并保存 |
-| `utilities.py` | `split_type_data()` 拆分类别，`read_data()` 返回训练、验证、测试工厂；`get_key()` 为未被主流程调用的工具 |
-| `category_triple_factory.py` | 构造 ID、实体类别邻接矩阵、头尾方向的关系类别矩阵、类别实体反查、关系映射置信度；提供跨视图样本与二进制保存方法 |
-| `cs_model.py` | `CategorySupplementedModel` 实现类别增强打分；`CST` 和 `CSR` 指定交互、维度、初始化与约束 |
-| `category_training_loop.py` | 普通 sLCWA 的平台期降学习率扩展；类别模型的三个优化阶段；批次、回调、检查点与异常处理 |
-| `cross_view_instances.py` | 从实体类别对生成预分批 IterableDataset |
-| `cross_view_negative_sampler.py` | `CorssViewNegativeSampler`（原拼写）替换实体或类别产生负例 |
-| `cross_view_filter.py` | Python 集合过滤已知实体类别正例，mask=True 表示可用负例 |
-| `training_callbacks.py` | 按 inner/cross_view/outer 标记更新对应优化器；验证后调度学习率和保存最佳状态 |
-| `stopper.py` | OneCycle 下延迟验证；可选额外评估训练集并记录结果 |
-| `new_pipeline.py` | 复用 PyKEEN 的私有处理函数，允许直接传入已构建训练循环实例，返回 PipelineResult |
+| `train.py` | Assemble loss, data, models, optimizers, schedulers, and stoppers; invoke the pipeline and save results |
+| `utilities.py` | Separate category triples with `split_type_data()`; return training, validation, and test factories from `read_data()`; `get_key()` is not used by the main workflow |
+| `category_triple_factory.py` | Build IDs, entity/category adjacency, head/tail relation/category matrices, reverse lookups, and relation mapping confidence; expose cross-view samples and binary persistence |
+| `cs_model.py` | Implement category-supplemented scoring in `CategorySupplementedModel`; select interactions, dimensions, initialization, and constraints in `CST`/`CSR` |
+| `category_training_loop.py` | Extend ordinary sLCWA with plateau scheduling; implement three optimizer stages, batching, callbacks, checkpoints, and exception handling |
+| `cross_view_instances.py` | Produce pre-batched entity/category pairs through an IterableDataset |
+| `cross_view_negative_sampler.py` | Replace entities or categories to generate negatives in `CorssViewNegativeSampler` (original spelling) |
+| `cross_view_filter.py` | Filter known positive entity/category pairs with a Python set; mask=True identifies a valid negative |
+| `training_callbacks.py` | Step the optimizer selected by the inner/cross_view/outer flag; schedule learning rates and save best states after validation |
+| `stopper.py` | Delay validation under OneCycle; optionally evaluate and record training-set metrics |
+| `new_pipeline.py` | Reuse private PyKEEN handlers, accept an already constructed training-loop instance, and return PipelineResult |
 
-## 4. 类别增强模型的关键张量与打分
+## 4. Category representations and scoring
 
-设实体数为 E、类别数为 C、实体维度 d、类别维度 k：
+Let E be the entity count, C the category count, d the entity dimension, and k the category dimension:
 
-- 实体表示形状为 E×d，类别表示为 C×k。
-- 实体类别矩阵 A 为 E×C，非零行做 L1 归一化，等价于对所属类别取均值。
-- 投影 `P = Linear(k, d) + Tanh`，实体 e 的类别代理表示为 `P(A[e] @ category_embeddings)`。
-- 每实体一个可训练参数 w；`sigmoid(w)` 决定原始实体打分的占比。初始化时有类别实体 w=0，无类别实体 w≈10。
+- Entity representations have shape E x d; category representations have shape C x k.
+- The entity/category matrix A has shape E x C. Nonzero rows are L1-normalized, averaging an entity's assigned categories.
+- The projection is `P = Linear(k, d) + Tanh`. The category-derived representation of entity e is `P(A[e] @ category_embeddings)`.
+- Each entity has a trainable scalar w. `sigmoid(w)` determines the original entity-score contribution. Initially, categorized entities have w=0; uncategorized entities have w approximately 10.
 
-`score_hrt()` 只用实体/关系表示。`score_hrt_with_cat()` 分别替换头实体与尾实体为类别代理，按各自权重混合，再取两方向平均。评估 `score_t()` 只混合已知头实体的类别，`score_h()` 只混合已知尾实体的类别，候选实体仍使用原始表示。因此训练第三阶段和推理并非调用同一个打分方法。
+`score_hrt()` uses only entity/relation representations. `score_hrt_with_cat()` separately substitutes the head and tail with category-derived representations, mixes scores using the corresponding weights, and averages the two directions. During evaluation, `score_t()` mixes category information only for the known head, while `score_h()` mixes it only for the known tail. Candidate entities retain their original representations. Stage-III training and inference therefore do not call the same scoring method.
 
-`score_cross_view()` 返回整个批次的负范数除以批次大小，是一个标量，**不是逐样本距离向量**。跨视图损失也没有直接使用主模型的 NSSALoss，详见下一节。这些都是现有实现行为，不能仅凭方法名推断为标准对比损失。
+`score_cross_view()` returns a negative norm over the entire batch divided by batch size: a scalar, **not a vector of per-example distances**. Its loss does not directly use the main model's NSSALoss. These are properties of the implementation; method names alone do not establish a standard contrastive objective.
 
-CSR 的向量以实数存储，由 PyKEEN 交互视为复数配对，要求相关维度为偶数；因此 CSR 的 `-ed` 与 PyKEEN 原生 RotatE 的复数 embedding_dim 不宜直接按参数量等同。
+CSR stores real-valued vectors that the PyKEEN interaction interprets as complex pairs, requiring even dimensions. Its `-ed` is therefore not directly comparable to the native RotatE complex `embedding_dim` in terms of parameter count.
 
-## 5. 三阶段训练：一个 epoch 内实际发生什么
+## 5. Three stages within each epoch
 
-每轮先把普通三元组 DataLoader 转成列表，再按批次数量和 `inner_percentage` 划分。它不是按验证集切分，也不是显式求二阶梯度的双层优化。
+Each epoch materializes the ordinary triple DataLoader as a list, then splits it by batch count using `inner_percentage`. This is not a validation-set split or an explicit second-order bilevel optimization procedure.
 
-| 阶段 | 输入与打分 | 更新参数 | 学习率 |
+| Stage | Input and score | Updated parameters | Learning rate |
 | --- | --- | --- | --- |
-| I / inner | 前约 80% 普通批次，`score_hrt`，NSSA 或 margin loss | 实体、关系嵌入 | `-lr` |
-| II / cross_view | 所有实体类别对，`score_cross_view`，自定义 logsigmoid 损失 | 类别嵌入、投影层、实体嵌入 | 类别/投影 `-lr_beta`，实体 `-lr_kappa` |
-| III / outer | 剩余普通批次，`score_hrt_with_cat`，NSSA 或 margin loss | 每实体偏好权重 | `-lr_eta` |
+| I / inner | First approximately 80% of ordinary batches; `score_hrt`; NSSA or margin loss | Entity and relation embeddings | `-lr` |
+| II / cross_view | All entity/category pairs; `score_cross_view`; custom logsigmoid loss | Category embeddings, projection, and entity embeddings | Categories/projection: `-lr_beta`; entities: `-lr_kappa` |
+| III / outer | Remaining ordinary batches; `score_hrt_with_cat`; NSSA or margin loss | Per-entity preference weights | `-lr_eta` |
 
-阶段 I/III 普通负采样量都来自 `-nen`；阶段 II 用 `-nenT`。阶段 III 只让 outer 优化器更新权重，并非所有参与前向计算的参数都会更新。
+Both stages I and III use `-nen` negatives; stage II uses `-nenT`. In stage III, only the outer optimizer updates preference weights. Participating in the forward pass does not imply that every parameter is updated.
 
-阶段 II：正分数经 logsigmoid；负分数经 logsigmoid 后取均值，再用脱离梯度的 `s-s²` 作权重。该损失并非标准 self-adversarial softmax，若要从论文复现方法，应优先对照此处。epoch loss 是三个阶段批次损失的混合平均，不能直接与普通 TransE 的 loss 横向比较。
+Stage II applies logsigmoid to positive scores and averages logsigmoid-transformed negative scores. It then weights the negative term with a detached `s-s^2`. This is not the standard self-adversarial softmax objective and should be checked against the intended method before claiming reproduction. Epoch loss averages batch losses from all three stages and should not be compared directly with ordinary TransE loss.
 
-普通模型使用另一个训练循环，仅跑普通三元组训练。默认早停每 10 轮验证一次 MRR，patience=10 次验证；RLRP 基于早停器记录的最佳指标降学习率，而非每个 batch 的 loss。
+Baseline models use the other loop and train only on ordinary triples. Default stopping evaluates validation MRR every 10 epochs with patience of 10 evaluations. RLRP uses the stopper's best recorded metric rather than per-batch loss.
 
-## 6. 本次已修正的问题
+## 6. Corrections made during setup
 
-- 训练入口固定 CUDA：增加 auto/cpu/cuda，显存比例仅在 CUDA 下设置，提前把模型移动到目标设备。
-- 内置数据集引用未定义 `training`：统一从 `dataset.training` 读取。
-- CPU 冒烟测试关闭早停后，RLRP 访问不存在的 patience：仅对 EarlyStopper 创建该调度器。
-- 阶段 III 负分数未恢复 batch×negatives 形状：恢复形状后交给 loss，避免错误广播/归约。
-- `ent2cat` 在构建后被最后一个实体覆盖：保留完整映射。
-- PyKEEN 版本类型导入不兼容：BoolTensor/LongTensor 从 torch 导入。
-- 基线训练器未使用指定优化器：传入 `-o`。
-- 数据、输出和缓存依赖工作目录：改为项目定位；保存 `args.json`，在模型构造前设置随机种子。
-- `get_key()` 的 `.item()` 拼写错误、数据返回顺序注释错误。
+- Replaced mandatory CUDA with auto/cpu/cuda selection; set the memory fraction only on CUDA and move models to the selected device before optimizer construction.
+- Replaced an undefined `training` reference for built-in datasets with `dataset.training`.
+- Create RLRP scheduling from an EarlyStopper only, avoiding access to nonexistent patience fields when stopping is disabled.
+- Restore stage-III negative scores to batch-by-negatives shape before loss evaluation, avoiding incorrect broadcasting or reduction.
+- Preserve the complete `ent2cat` mapping instead of overwriting it with the last entity.
+- Import BoolTensor/LongTensor from torch for PyKEEN compatibility.
+- Pass the requested `-o` optimizer to the baseline loop.
+- Locate data, default outputs, and caches relative to the project; save actual arguments in `args.json`; set the seed before constructing models.
+- Correct the `.item()` typo in `get_key()` and the documented dataset return order.
 
-## 7. 后续算法审查重点
+## 7. Algorithm-review concerns
 
-以下为静态阅读发现，未在本次目录/环境整理中擅自改动算法：
+The following concerns come from static inspection. The setup work did not redesign these algorithms:
 
-1. `create_entity_mapping()` 在类别实体数量较多时只保留交集，可能遗漏没有类别的普通实体；外部传入 entity_to_id 时 categorized_ent_num 也未正确计算。四套数据之外的新数据尤其应验证。
-2. `CategoryTriplesFactory._from_path_binary()` 未完整恢复构造器所需字段，不能把成功保存理解成类别工厂 round-trip 已验证。当前 smoke 检查训练、评估、模型文件保存，不检查该工厂的独立反序列化。
-3. CSR 实数视作复数会产生大量 PyKEEN 警告；应在理解维度语义后设计专用复数表示，不能直接更换 dtype。
-4. `score_h/score_t` 显式 repeat 全实体张量，内存开销大；传入 heads/tails 子集时仍硬编码按 num_entities reshape，子集候选模式不可靠。
-5. 跨视图 sampler 按 categorized_entities 和 categories 的比例分配扰动区间；在类别数大于实体数等边界条件下区间覆盖需验证。多 worker 的样本分片也有偏移问题，当前入口默认 0 worker。
-6. 类别训练先 `list(batches)`，会一次性保留一轮普通负例；大负采样参数可能占用大量内存。
-7. OCLR 绑定的是基础优化器，类别模型实际由三个额外优化器更新，未保证 OCLR 会调节真正使用的学习率。正式类别实验优先沿用预设的 RLRP。
-8. `-r/-rn` 的原始正则化配置是 tuple，且模型提前构造，pipeline 参数不能确保生效；`-train` 会被后续显式训练器替换；`-ef` 使用 argparse 的 bool 转换，字符串 False 仍为真。这些非默认参数需要单独修正/验证。
-9. 训练 callbacks 用裸 except 把优化器异常统一变成 flag 缺失，可能掩盖真正原因；最佳检查点机制也未验证三个优化器的完整续训状态。
-10. 关系类别矩阵、关系置信度、normal_noise 等被计算或保存，但主打分/训练路径没有消费它们；不是当前算法所有步骤都在利用关系类别信息。
+1. `create_entity_mapping()` retains only an intersection in its branch for many categorized entities, potentially dropping ordinary entities without categories. With externally supplied entity IDs, `categorized_ent_num` is also not computed correctly. Additional datasets require explicit validation.
+2. `CategoryTriplesFactory._from_path_binary()` does not restore every required constructor field. Successful saving does not establish factory round-trip support. Smoke tests check training, evaluation, and model-file creation, not independent factory deserialization.
+3. CSR's real-to-complex interpretation produces many PyKEEN warnings. Any dedicated complex representation needs a dimension-semantics review rather than a dtype-only change.
+4. `score_h/score_t` explicitly repeat candidate tensors, increasing memory consumption. Candidate subsets remain unsafe because reshaping still uses `num_entities` even when heads/tails are supplied.
+5. The cross-view sampler partitions corruption ranges using the categorized-entity/category ratio. Boundary cases, including more categories than entities, need coverage checks. Multi-worker sample partitioning also has an offset issue; the entry point currently defaults to zero workers.
+6. Materializing `list(batches)` retains a full epoch of ordinary negatives, which may consume substantial memory at large negative-sampling counts.
+7. OCLR is attached to the base optimizer, while category models update parameters through three other optimizers. It is not established that OCLR schedules those active optimizers. Existing category presets use RLRP.
+8. The original `-r/-rn` configuration creates a tuple, and the model is constructed before pipeline regularization can reliably apply. `-train` is replaced by an explicit loop later. `-ef` uses argparse's bool conversion, so the string False evaluates to true. These nondefault options need separate corrections and validation.
+9. Bare except handlers in optimizer callbacks report arbitrary optimizer errors as missing flags. Full continuation of all three optimizers and the best-checkpoint lifecycle have not been verified.
+10. Relation/category matrices, relation confidence, and `normal_noise` are computed or stored but are not consumed by the main scoring/training path. Their presence does not mean the current algorithm uses all relation/category information.
 
-建议阅读顺序：`train.py` → `utilities.py` → 工厂的 `from_labeled_triples` → `cs_model.py` → `_train_epoch` → 三个 loss 处理函数与 callbacks → pipeline/早停/保存逻辑。先理解实际参数流和更新范围，再对照论文或改动损失。
+Suggested reading order: `train.py`, `utilities.py`, the factory's `from_labeled_triples`, `cs_model.py`, `_train_epoch`, the three loss handlers and callbacks, then pipeline/stopping/persistence. Establish actual parameter flow and update ownership before comparing with a paper or changing the loss.

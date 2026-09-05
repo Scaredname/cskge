@@ -1,4 +1,4 @@
-"""Exercise all four models on a tiny synthetic categorized graph (CPU)."""
+"""Exercise all four models on a tiny synthetic categorized graph (CPU or CUDA)."""
 import argparse
 import json
 import math
@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--stopper", choices=["early", "nop"], default="nop")
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
     # A temporary local dataset avoids downloads and leaves bundled data intact.
     with tempfile.TemporaryDirectory(prefix="smoke_", dir=ROOT / "data") as tmp:
@@ -25,9 +26,9 @@ def main():
         (dataset / "valid.txt").write_text("e0\tr0\te3\ne1\tr1\te5\n")
         (dataset / "test.txt").write_text("e2\tr0\te6\ne3\tr1\te8\n")
         for model in ["transe", "rotate", "cs-transe", "cs-rotate"]:
-            output = ROOT / "models/smoke" / model
+            output = ROOT / "models/smoke" / args.device / model
             cmd = [sys.executable, str(ROOT / "train.py"), "-d", dataset.name,
-                   "-m", model, "--device", "cpu", "-e", str(args.epochs), "-b", "4",
+                   "-m", model, "--device", args.device, "-e", str(args.epochs), "-b", "4",
                    "-ed", "8", "-ced", "4", "-nen", "2", "-nenT", "2",
                    "-eb", "2", "-stop", args.stopper, "--random_seed", "42",
                    "--output-dir", str(output)]

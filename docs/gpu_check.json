@@ -1,0 +1,42 @@
+{
+  "python": "3.11.16",
+  "python_base_prefix": "/home/ni/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu",
+  "torch": "2.7.1+cu128",
+  "cuda_runtime": "12.8",
+  "cuda_visible_devices": null,
+  "cuda_available": true,
+  "compiled_architectures": [
+    "sm_75",
+    "sm_80",
+    "sm_86",
+    "sm_90",
+    "sm_100",
+    "sm_120",
+    "compute_120"
+  ],
+  "gpus": [
+    {
+      "index": 0,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+      "capability": [
+        12,
+        0
+      ],
+      "memory_bytes": 101971722240,
+      "forward_backward": "passed"
+    },
+    {
+      "index": 1,
+      "name": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+      "capability": [
+        12,
+        0
+      ],
+      "memory_bytes": 101971722240,
+      "forward_backward": "passed"
+    }
+  ],
+  "nvidia_smi": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition, 580.105.08, 97887 MiB\nNVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition, 580.105.08, 97887 MiB",
+  "nvidia_smi_exit_code": 0,
+  "passed": true
+}

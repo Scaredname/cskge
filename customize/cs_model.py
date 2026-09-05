@@ -126,7 +126,7 @@ class CategorySupplementedModel(ERModel):
 
         return -(
             torch.norm((ent_emb - self.project_cat_to_ent_space(cat_emb)))
-            / ent_emb.shape[0]  # 除以batch_size 得到 平均误差
+            / ent_emb.shape[0]  # Normalize the batch norm by the batch size
         )
 
     def get_weighted_category_emb_wrt_ent(self, ent_index):
@@ -239,7 +239,7 @@ class CategorySupplementedModel(ERModel):
 
         head_cat_emb = head_cat_emb.view(h.shape[0], h.shape[1], -1)
 
-        # 确保t和t_type_emb的shape一致
+        # Broadcast candidate tails across query batches
         t = t.unsqueeze(dim=0).repeat(h.shape[0], 1, 1)
 
         head_cat_weight = sigmoid(self.ent_wrt_cat_weight[hr_batch[..., 0]])
@@ -263,7 +263,7 @@ class CategorySupplementedModel(ERModel):
 
         return repeat_if_necessary(
             # score shape: (batch_size, num_entities)
-            scores=scores,  # 会出现测试批度为1的特例，所以调整一下score的shape
+            scores=scores,  # Handle the score shape when the evaluation batch size is one
             representations=self.entity_representations,
             num=self._get_entity_len(mode=mode) if tails is None else tails.shape[-1],
         )
@@ -307,7 +307,7 @@ class CategorySupplementedModel(ERModel):
         # ).view(-1, self.num_entities)
 
         return repeat_if_necessary(
-            scores=scores,  # 会出现测试批度为1的特例，所以调整一下score的shape
+            scores=scores,  # Handle the score shape when the evaluation batch size is one
             representations=self.entity_representations,
             num=(self._get_entity_len(mode=mode) if heads is None else heads.shape[-1]),
         )

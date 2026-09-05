@@ -1,28 +1,28 @@
-# 环境与验证记录
+# Environment and validation record
 
-本记录对应 2026-09-05 本地验证。硬件/软件记录见 `environment.json`，文件行数见 `data_inventory.json`。
+This record describes local checks performed on 2026-09-05. See `environment.json` for hardware/software details and `data_inventory.json` for input file line counts.
 
-## 环境
+## Current environment
 
-- 项目内 `.venv`：uv 管理的独立 Python 3.11.16、PyTorch 2.0.0、PyKEEN 1.10.2。
-- NumPy 1.26.4、SciPy 1.10.1、pandas 2.0.0、class_resolver 0.5.2。
-- `pyproject.toml` 声明依赖，`uv.lock` 锁定完整版本，`.python-version` 固定 Python；`requirements.txt` 仅为兼容导出。
-- `uv pip check` 通过，无依赖冲突。
-- PyTorch 包包含 CUDA 11.7 runtime，但 `torch.cuda.is_available()` 为 false，`nvidia-smi` 无法连接驱动。CPU 可运行；GPU 完整实验需要主机先提供可用驱动，Python 包安装不能替代内核驱动。
-- 项目使用 `PYKEEN_HOME=.cache/pykeen` 作为默认缓存目录；可通过环境变量覆盖。
+- Project `.venv`: uv-managed CPython 3.11.16, PyTorch 2.7.1+cu128, and PyKEEN 1.10.2.
+- NumPy 1.26.4, SciPy 1.10.1, pandas 2.0.0, and class_resolver 0.5.2.
+- `pyproject.toml` declares dependencies, `uv.lock` pins resolved versions, and `.python-version` pins Python. `requirements.txt` is a compatibility export only.
+- `uv pip check` passed with no dependency conflicts.
+- Host driver 580.105.08 works with two RTX PRO 6000 Blackwell cards. The CUDA 12.8 build has been verified. Earlier `nvidia-smi` failures occurred inside a restricted sandbox and did not indicate a host driver failure. See `gpu.md` and `gpu_check.json`.
+- The default PyKEEN cache is `.cache/pykeen`; override it with `PYKEEN_HOME` if needed.
 
-## 实际执行
+## Initial validation before the GPU upgrade
 
-| 检查 | 结果 | 覆盖范围 |
+| Check | Result | Coverage |
 | --- | --- | --- |
-| `python train.py --help` | 通过 | 全部自定义模块可导入 |
-| `python scripts/smoke_test.py` | 四模型通过 | 合成类别图，2 轮、关闭早停、CPU，训练/测试/模型保存 |
-| `python scripts/smoke_test.py --epochs 10 --stopper early` | 四模型通过 | 10 轮触发验证，RLRP/早停回调、最佳权重保存、最终测试 |
-| 真实 `yago_new` 的 CST | 通过 | 完整 32993 训练三元组、5744 实体、33 关系，1 轮训练和 4092 测试三元组评估 |
-| 内置 Nations + TransE | 通过 | 1 轮 CPU 训练、评估、保存，覆盖原先未定义变量的分支 |
-| `compileall`、`bash -n`、`git diff --check` | 通过 | Python 语法、安装脚本语法、补丁空白检查 |
+| `python train.py --help` | Passed | All custom modules import successfully |
+| `python scripts/smoke_test.py` | All four models passed | Synthetic categorized graph, two CPU epochs, stopping disabled; training, testing, and saving |
+| `python scripts/smoke_test.py --epochs 10 --stopper early` | All four models passed | Validation at epoch 10, RLRP/stopping callbacks, best-weight saving, and final testing |
+| CST on real `yago_new` | Passed | 32,993 training triples, 5,744 entities, 33 relations; one training epoch and evaluation of 4,092 test triples |
+| Built-in Nations with TransE | Passed | One CPU epoch, evaluation, and saving; covers the previously undefined-variable branch |
+| `compileall`, `bash -n`, `git diff --check` | Passed | Python syntax, setup-script syntax, and patch whitespace |
 
-真实数据验证命令：
+Initial real-data validation command:
 
 ```bash
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 .venv/bin/python train.py \
@@ -31,20 +31,35 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 .venv/bin/python train.py \
   --output-dir models/validation
 ```
 
-该轮 loss 为约 2.00958，测试集双向 realistic MRR 为约 0.00133260。仅用于确认完整流程，低维单轮结果不代表论文或最佳配置性能。产物在 `models/validation/yago_new/cs-transe/`。
+This run produced loss approximately 2.00958 and realistic, both-side test MRR approximately 0.00133260. These low-dimensional, one-epoch results establish workflow execution, not paper-level or best-preset performance. Artifacts are under `models/validation/yago_new/cs-transe/`.
 
-10 轮合成图 smoke 测试最终 loss 均有限，四模型均生成 `results.json` 和 `trained_model.pkl`；详细产物在 `models/smoke/`。脚本生成的临时合成数据在退出时删除，原始数据不变。
+All initial ten-epoch synthetic runs produced finite final losses, `results.json`, and `trained_model.pkl`. Artifacts are under `models/smoke/`. Temporary synthetic input directories are removed when the script exits; bundled data is preserved.
 
-## 验证边界
+## uv migration
 
-没有执行 16 组 1000 轮完整实验，也没有验证 GPU、精确数值复现、断点续训、类别工厂独立反序列化、分布式/多 worker、候选实体子集评估。NELL/FB/DB 已解压和统计文件，未做全量训练。10 轮测试验证了早停评估与保存路径，未等待 patience 耗尽后的自动终止。
+The first environment used conda-provided Python 3.11.4 to create a venv. It was replaced by uv 0.12.10 with independently downloaded CPython 3.11.16. The initial ten-epoch stopping checks and CPU YAGO run predate that migration. All four models passed two-epoch CPU smoke tests after the migration.
 
-兼容性修复特别是阶段 III 负分数形状修复可能改变旧版结果。原始参数保存在 `configs/experiments.json` 与 `original_experiments.md`；原始源代码仍可通过 Git 查看。算法疑点见 `code_guide.md` 第 7 节。
+A Linux-wheel metadata override was initially needed for PyTorch 2.0.0. It was removed when the GPU fix upgraded torch to 2.7.1+cu128. setuptools 65.5.0 remains pinned because the old PyKEEN code imports `pkg_resources`.
 
-## uv 迁移
+Use `uv run --locked python ...` for execution, `uv add`/`uv lock` to update dependencies, and `uv sync --locked` to synchronize the environment. Generate the compatibility requirements file with:
 
-初次验证使用 conda 提供的 Python 3.11.4 创建 venv；现已切换到 uv 0.12.10 下载的独立 CPython 3.11.16，并重建 `.venv`。原来的 10 轮早停及真实 YAGO 验证属于迁移前记录。迁移后重新执行四模型 2 轮 CPU 冒烟测试，覆盖训练、评估和保存。
+```bash
+uv export --locked --format requirements-txt --no-hashes --no-header --output-file requirements.txt
+```
 
-PyTorch 2.0.0 的跨平台元数据存在差异；`pyproject.toml` 的 dependency-metadata 使用已安装 Linux x86_64 wheel 的原始 Requires-Dist，确保 uv 不漏装 CUDA runtime 依赖。该配置没有更换 PyTorch 或改动模型算法。另将原 venv 自带的 setuptools 65.5.0 显式加入依赖，因为旧版 PyKEEN 仍导入 pkg_resources，新的 setuptools 已不提供该模块。
+There is no separately maintained requirements lockfile.
 
-日常使用 `uv run --locked python ...`；更新依赖使用 `uv add`/`uv lock`，然后执行 `uv sync --locked`。兼容 requirements 文件通过 `uv export --locked --format requirements-txt --no-hashes --no-header --output-file requirements.txt` 生成，不单独维护第二套锁文件。
+## Validation after the GPU fix
+
+- `uv run --locked python scripts/check_gpu.py`: both GPUs passed matrix multiplication, backpropagation, and finite-gradient checks outside the sandbox. The build includes sm_120 kernels.
+- `uv run --locked python scripts/smoke_test.py --device cuda --epochs 10 --stopper early`: all four models passed, including epoch-10 validation, best-state saving, and final testing. Artifacts are under `models/smoke/cuda/`.
+- Real YAGO/CST training for one epoch and evaluation of all 4,092 test triples passed on the second physical card. Artifacts are under `models/validation/gpu1/`; numerical details are in `gpu.md`.
+- All four models passed two-epoch CPU regression tests under the new PyTorch version. Artifacts are under `models/smoke/cpu/`.
+
+## Validation boundaries
+
+The 16 original 1,000-epoch experiments have not been run. Exact numerical reproduction, full checkpoint continuation, independent category-factory deserialization, multi-GPU training, multiple data-loader workers, and candidate-entity subset evaluation remain unverified. NELL, FB, and DB files were extracted and counted, but not used in full training runs. Ten-epoch tests exercise stopping evaluation and saving, not termination after patience is exhausted.
+
+As documented in the [PyTorch serialization notes](https://docs.pytorch.org/docs/2.7/notes/serialization.html), `torch.load` defaults to `weights_only=True` starting with 2.6. Restoring old PyKEEN full checkpoints containing NumPy RNG state requires separate compatibility work. No global loading-policy override was introduced.
+
+Compatibility fixes, particularly the stage-III negative-score reshape, may change historical results. Original presets are retained in `configs/experiments.json` and `original_experiments.md`; original source is available through Git history. See section 7 of `code_guide.md` for algorithm-review concerns.

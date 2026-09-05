@@ -1,4 +1,4 @@
-# ==== 标准库 ====
+# ==== Standard library ====
 import argparse
 import datetime
 import json
@@ -9,10 +9,10 @@ from pathlib import Path
 # Keep PyKEEN caches inside the project, including on restricted hosts.
 os.environ.setdefault("PYKEEN_HOME", str(Path(__file__).resolve().parent / ".cache" / "pykeen"))
 
-# ==== 第三方库 ====
+# ==== Third-party libraries ====
 import torch
 
-# ==== PyKEEN 核心 ====
+# ==== PyKEEN core ====
 import pykeen
 import pykeen.datasets
 from pykeen.datasets import get_dataset
@@ -21,7 +21,7 @@ from pykeen.losses import MarginPairwiseLoss, NSSALoss
 from pykeen.models import model_resolver
 from pykeen.sampling import negative_sampler_resolver
 
-# ==== 自定义模块 ====
+# ==== Custom modules ====
 from customize.new_pipeline import pipeline
 from customize.cs_model import CSR, CST
 from customize.category_training_loop import (
@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
     if device == "cuda" and not torch.cuda.is_available():
-        parser.error("CUDA is unavailable; use --device cpu or repair the NVIDIA driver.")
+        parser.error("CUDA is unavailable in this process; check sandbox/device access and CUDA_VISIBLE_DEVICES, or use --device cpu.")
     if not 0 < args.memory_fraction <= 1:
         parser.error("--memory_fraction must be in (0, 1].")
     if args.model.startswith("cs-") and not 0 < args.inner_percentage < 1:
@@ -327,7 +327,7 @@ if __name__ == "__main__":
         lr_scheduler_kwargs = dict(
             max_lr=args.learning_rate,
             epochs=args.epochs,
-            steps_per_epoch=1,  # PyKEEN 中每个 epoch 通常只有一个 step
+            steps_per_epoch=1,  # The scheduler callback advances once per epoch
             anneal_strategy="cos",
             cycle_momentum=False,
             pct_start=0.3,

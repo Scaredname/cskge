@@ -1,4 +1,4 @@
-# ==== 标准库 ====
+# ==== Standard library ====
 import gc
 import logging
 import os
@@ -6,7 +6,7 @@ import pathlib
 import time
 from typing import List, Mapping, Optional, Any, Union
 
-# ==== 第三方库 ====
+# ==== Third-party libraries ====
 import torch
 from torch.nn.functional import logsigmoid
 from torch.utils.data import DataLoader
@@ -50,7 +50,7 @@ from pykeen.utils import (
 )
 from torch.optim.optimizer import Optimizer
 
-# ==== 自定义模块 ====
+# ==== Custom modules ====
 from customize.training_callbacks import (
     CVOptimizerTrainingCallback,
     EarlyStoppingWithLROnPlateuaCallback,

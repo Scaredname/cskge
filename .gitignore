@@ -23,3 +23,6 @@ models_old/*
 .venv/
 .cache/
 *.log
+
+# Private experiment planning and local artifacts
+/local_experiments/
