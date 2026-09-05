@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Optional
 from class_resolver import normalize_string
 from pykeen.sampling.basic_negative_sampler import random_replacement_
 from pykeen.sampling.filtering import Filterer
-from pykeen.typing import BoolTensor, LongTensor
+from torch import BoolTensor, LongTensor
 from torch import nn
 
 from .cross_view_filter import CrossViewPythonSetFilterer

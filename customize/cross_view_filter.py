@@ -5,7 +5,8 @@ from collections.abc import Iterable
 import torch
 from class_resolver import ClassResolver
 from pykeen.sampling.filtering import Filterer
-from pykeen.typing import BoolTensor, LongTensor, MappedTriples
+from pykeen.typing import MappedTriples
+from torch import BoolTensor, LongTensor
 from pykeen.utils import triple_tensor_to_set
 from torch import nn
 

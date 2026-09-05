@@ -4,6 +4,10 @@ import datetime
 import json
 import logging
 import os
+from pathlib import Path
+
+# Keep PyKEEN caches inside the project, including on restricted hosts.
+os.environ.setdefault("PYKEEN_HOME", str(Path(__file__).resolve().parent / ".cache" / "pykeen"))
 
 # ==== 第三方库 ====
 import torch
@@ -26,6 +30,7 @@ from customize.category_training_loop import (
 )
 from customize.stopper import EarlyStopperWithTrainingResults, PostponeEarlyStopper
 from utilities import read_data
+from pykeen.utils import set_random_seed
 
 
 parser = argparse.ArgumentParser()
@@ -144,14 +149,25 @@ parser.add_argument(
 )
 
 # === Misc ===
-parser.add_argument("--random_seed", type=int, default=None)
+parser.add_argument("--random_seed", type=int, default=42)
+parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent / "models")
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    torch.cuda.set_per_process_memory_fraction(args.memory_fraction)
+    device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
+    if device == "cuda" and not torch.cuda.is_available():
+        parser.error("CUDA is unavailable; use --device cpu or repair the NVIDIA driver.")
+    if not 0 < args.memory_fraction <= 1:
+        parser.error("--memory_fraction must be in (0, 1].")
+    if args.model.startswith("cs-") and not 0 < args.inner_percentage < 1:
+        parser.error("--inner_percentage must be in (0, 1).")
+    if device == "cuda":
+        torch.cuda.set_per_process_memory_fraction(args.memory_fraction)
+    set_random_seed(args.random_seed)
 
     if args.regularization > 0 and args.regularization_norm > 0:
         regularizer_kwargs = (
@@ -204,7 +220,7 @@ if __name__ == "__main__":
             metric="mean_reciprocal_rank",
             evaluation_batch_size=args.evaluator_batch_size,
         ),
-        device="cuda",
+        device=device,
         loss=loss,
         regularizer_kwargs=regularizer_kwargs,
         random_seed=args.random_seed,
@@ -220,7 +236,7 @@ if __name__ == "__main__":
         datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
     )
 
-    if args.dataset in [
+    if (Path(__file__).resolve().parent / "data" / args.dataset / "train_cate.txt").is_file() or args.dataset in [
         "yago_new",
         "NELL-995_new",
         "DB_new",
@@ -248,11 +264,14 @@ if __name__ == "__main__":
             "transe": CST,
             "rotate": CSR,
         }
+        if not hasattr(dataset.training, "num_categories"):
+            parser.error("cs-* models require a local dataset with category annotations.")
         model = cs_model_resolver[base_model_name](
             triples_factory=dataset.training,
             ent_dim=args.emb_dim,
             rel_dim=args.emb_dim,
             cat_dim=args.cat_emb_dim,
+            random_seed=args.random_seed,
             loss=loss,
         )
     else:
@@ -260,10 +279,13 @@ if __name__ == "__main__":
             base_model_name,
             dict(
                 embedding_dim=args.emb_dim,
+                random_seed=args.random_seed,
                 triples_factory=dataset.training,
                 loss=loss,
             ),
         )
+
+    model = model.to(device)
 
     # ===== prepare kwargs =====
     negative_sampler_cls = negative_sampler_resolver.lookup(
@@ -272,7 +294,7 @@ if __name__ == "__main__":
     if is_cs_model:
         training_kwargs = dict(
             model=model,
-            triples_factory=training,
+            triples_factory=dataset.training,
             num_negs_cross_view=args.num_negs_two,
             optimizer_outer=args.optimizer,
             optimizer_outer_kwargs=dict(lr=args.learning_rate_eta),
@@ -288,7 +310,8 @@ if __name__ == "__main__":
     else:
         training_kwargs = dict(
             model=model,
-            triples_factory=training,
+            triples_factory=dataset.training,
+            optimizer=args.optimizer,
             optimizer_kwargs=dict(lr=args.learning_rate),
             negative_sampler=negative_sampler_cls,
             negative_sampler_kwargs=pipeline_config["negative_sampler_kwargs"],
@@ -319,7 +342,8 @@ if __name__ == "__main__":
             start_epoch=int(0.3 * args.epochs),
             **pipeline_config["stopper_kwargs"],
         )
-        pipeline_config["stopper"] = postpone_stopper
+        if args.stopper == "early":
+            pipeline_config["stopper"] = postpone_stopper
 
     elif args.lr_scheduler == "RLRP":
         using_LROnPlateau = True
@@ -347,7 +371,7 @@ if __name__ == "__main__":
             **training_kwargs,
         )
 
-    if args.evaluate_on_training:
+    if args.evaluate_on_training and args.stopper == "early":
         new_stopper = EarlyStopperWithTrainingResults(
             model=model,
             evaluator=evaluator_instance,
@@ -364,7 +388,7 @@ if __name__ == "__main__":
     )
 
     # Save results and configuration
-    modelpath = "./models" + date_time
+    modelpath = args.output_dir / date_time.lstrip("/")
     for config in pipeline_result.configuration:
         pipeline_result.configuration[config] = str(
             pipeline_result.configuration[config]
@@ -377,6 +401,8 @@ if __name__ == "__main__":
     pipeline_result.configuration["random_seed"] = pipeline_result.random_seed
     pipeline_result.configuration["description"] = args.description
     pipeline_result.save_to_directory(modelpath)
+    with open(modelpath / "args.json", "w") as f:
+        json.dump({**vars(args), "device": device}, f, indent=2, default=str)
 
     with open(os.path.join(modelpath, "config.json"), "w") as f:
         json.dump(pipeline_result.configuration, f, indent=1)

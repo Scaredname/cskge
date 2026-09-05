@@ -1,0 +1,17 @@
+{
+  "python": "3.11.16",
+  "platform": "Linux-6.17.9-arch1-1-x86_64-with-glibc2.42",
+  "packages": {
+    "torch": "2.0.0",
+    "pykeen": "1.10.2",
+    "numpy": "1.26.4",
+    "scipy": "1.10.1",
+    "pandas": "2.0.0",
+    "class_resolver": "0.5.2",
+    "setuptools": "65.5.0"
+  },
+  "cuda_available": false,
+  "torch_cuda": "11.7",
+  "python_base_prefix": "/home/ni/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu",
+  "environment_manager": "uv 0.12.10"
+}

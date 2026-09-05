@@ -42,7 +42,7 @@ from pykeen.training.callbacks import (
     TrainingCallbackHint,
     TrainingCallbackKwargsHint,
 )
-from pykeen.stoppers import Stopper
+from pykeen.stoppers import EarlyStopper, Stopper
 from pykeen.utils import (
     format_relative_comparison,
     get_batchnorm_modules,
@@ -223,7 +223,7 @@ class SLCWAWithReduceLROnPlateauLRScheduler(SLCWATrainingLoop):
                 # breakpoint()
         elif not self.optimizer.state:
             raise ValueError("Cannot continue_training without being trained once.")
-        if stopper is not None and self.using_LRonPlateau:
+        if isinstance(stopper, EarlyStopper) and self.using_LRonPlateau:
 
             lr_plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer=self.optimizer,
@@ -833,7 +833,7 @@ class CategorySupplementarySLCWATrainingLoop(SLCWAWithReduceLROnPlateauLRSchedul
 
         # Compute negative and positive scores
         positive_scores = model.score_hrt_with_cat(positive_batch)
-        negative_scores = model.score_hrt_with_cat(negative_batch)
+        negative_scores = model.score_hrt_with_cat(negative_batch).view(negative_score_shape)
 
         return (
             loss.process_slcwa_scores(
@@ -1302,7 +1302,7 @@ class CategorySupplementarySLCWATrainingLoop(SLCWAWithReduceLROnPlateauLRSchedul
                 )
         elif not self.optimizer.state:
             raise ValueError("Cannot continue_training without being trained once.")
-        if stopper is not None and self.using_LRonPlateau:
+        if isinstance(stopper, EarlyStopper) and self.using_LRonPlateau:
 
             inner_lr_plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer=self.optimizer_inner,

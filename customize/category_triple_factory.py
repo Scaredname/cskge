@@ -212,7 +212,6 @@ def id_ent2cat_cat2ent(ents_cates_adj_matrix):
         for cat_id in cat_ids:
             ent_cat_pairs.append((i, cat_id))
 
-    ent2cat = {i: list(np.where(row)[0])}
     cat2ent = {
         j: list(np.where(ents_cates_adj_matrix[:, j])[0])
         for j in range(ents_cates_adj_matrix.shape[1])

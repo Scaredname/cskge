@@ -1,0 +1,30 @@
+[
+  {
+    "dataset": "DB_new",
+    "valid.txt": 18057,
+    "train_cate.txt": 780226,
+    "train.txt": 681886,
+    "test.txt": 17694
+  },
+  {
+    "dataset": "FB_new",
+    "valid.txt": 17526,
+    "train_cate.txt": 366720,
+    "train.txt": 272115,
+    "test.txt": 20438
+  },
+  {
+    "dataset": "NELL-995_new",
+    "valid.txt": 7477,
+    "train_cate.txt": 214008,
+    "train.txt": 138516,
+    "test.txt": 7061
+  },
+  {
+    "dataset": "yago_new",
+    "valid.txt": 4139,
+    "train_cate.txt": 42745,
+    "train.txt": 32993,
+    "test.txt": 4092
+  }
+]

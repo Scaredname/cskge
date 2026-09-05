@@ -15,9 +15,11 @@ checkpoints/
 models_old/*
 
 # bash
-*.sh
 
 *.png
 *.ipynb
-test*
-try*
+
+# Local environment and experiment artifacts
+.venv/
+.cache/
+*.log

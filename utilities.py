@@ -1,10 +1,10 @@
-import os
+from pathlib import Path
 from pykeen.triples import TriplesFactory
 from customize.category_triple_factory import CategoryTriplesFactory
 
 
 def get_key(dict, va):
-    return [k for k, v in dict.item() if v == va]
+    return [k for k, v in dict.items() if v == va]
 
 
 def split_type_data(data: TriplesFactory):
@@ -30,13 +30,13 @@ def read_data(
 ):
     """
     @Params: data_name, data_pro_func, create_inverse_triples, type_position
-    @Return: Train, Test, Valid
+    @Return: Train, Valid, Test
     """
-    data_path = os.path.join(os.getcwd(), "./data/")
+    data_path = Path(__file__).resolve().parent / "data"
 
-    train_path = os.path.join(data_path, "%s/" % (data_name), "train_cate.txt")
-    valid_path = os.path.join(data_path, "%s/" % (data_name), "valid.txt")
-    test_path = os.path.join(data_path, "%s/" % (data_name), "test.txt")
+    train_path = data_path / data_name / "train_cate.txt"
+    valid_path = data_path / data_name / "valid.txt"
+    test_path = data_path / data_name / "test.txt"
 
     training = TriplesFactory.from_path(
         train_path,
